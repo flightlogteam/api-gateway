@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	xormadapter "github.com/casbin/xorm-adapter/v2"
+	"github.com/flightlogteam/api-gateway/presentation"
 	"github.com/flightlogteam/api-gateway/repository"
 	"github.com/flightlogteam/api-gateway/service"
 	_ "github.com/go-sql-driver/mysql"
@@ -17,18 +18,34 @@ func main() {
 	log.Print(config)
 
 	// Create the casbin-adapter
+
 	adapter, err := xormadapter.NewAdapter("mysql", config.createConnectionString())
 	if err != nil {
 		log.Fatalf("Unable to establish casbin-adapter: %v", err)
 	}
 
-	gatewayService := service.NewGatewayService("cert.pub",
-		"cert",
+	gatewayService := service.NewGatewayService("fly.rsa.pub",
+		"fly.rsa",
 		adapter,
 		getUserService())
 
-	gatewayService.ValidateToken("")
+	routes := []presentation.ProxyRoute{
+		{
+			DestinationAddress: "http://localhost:61226",
+			Target:             "Users",
+		},
+		{
+			DestinationAddress: "http://localhost:61227",
+			Target:             "Flights",
+		},
+		{
+			DestinationAddress: "http://localhost:61228",
+			Target:             "Locations",
+		},
+	}
 
+	api := presentation.NewGatewayApi(gatewayService, routes)
+	api.StartAPI()
 }
 
 func (c * databaseConfiguration) createConnectionString() string {

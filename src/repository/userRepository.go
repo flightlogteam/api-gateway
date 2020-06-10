@@ -14,6 +14,10 @@ import (
 func NewUserRepository(serviceUrl string) IUserServiceRepository {
 	log.Println("Initializing the UserRepository")
 
+	if len(serviceUrl) == 0 {
+		log.Println("No user-service is configured. Repository will not work")
+		return &UserRepository{}
+	}
 	connection, err := dialUserService(serviceUrl)
 
 	if err != nil {
@@ -84,7 +88,7 @@ func (u * UserRepository) LoginUser(username string, email string, password stri
 }
 
 func createCredentials() credentials.TransportCredentials {
-	creds, err := credentials.NewClientTLSFromFile("../certs/certificate.crt", "")
+	creds, err := credentials.NewClientTLSFromFile("servicecertificate.crt", "")
 	if err != nil {
 		log.Fatalf("Unable to start the Gateway due to missing certificates. Generate please: %v", err)
 	}
