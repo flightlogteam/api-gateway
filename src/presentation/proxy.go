@@ -47,6 +47,8 @@ func (pr ProxyRoute) serve(requestUrl string, res http.ResponseWriter, req *http
 	// create the reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(url)
 
+	// TODO: add client certificate
+
 	// Update the headers to allow for SSL redirection
 	req.URL.Host = url.Host
 	req.URL.Scheme = url.Scheme

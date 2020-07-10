@@ -6,7 +6,7 @@ require (
 	github.com/casbin/casbin/v2 v2.6.9
 	github.com/casbin/xorm-adapter/v2 v2.0.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/flightlogteam/userservice v0.0.1
+	github.com/flightlogteam/userservice v0.0.3
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gorilla/mux v1.6.2
 	github.com/klyngen/jsend v0.0.0-20190716184451-284cbade049f

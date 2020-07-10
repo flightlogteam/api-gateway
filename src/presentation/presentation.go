@@ -20,23 +20,24 @@ func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) Gateway
 	router := mux.NewRouter()
 
 
-	unprotected := router.PathPrefix("/api/public").Subrouter()
 	protected := router.PathPrefix("/api/protected").Subrouter()
-	// Mount authenticationRoutes
+	auth := router.PathPrefix("/auth").Subrouter()
 
-	unprotected.HandleFunc("/something/", func(writer http.ResponseWriter, request *http.Request) {
-		jsend.FormatResponse(writer, "HELLNO", jsend.ServiceNotAvailable)
+	// Implements the proxy
+	proxy := proxy{routes: routes}
+
+	auth.HandleFunc("*", func(w http.ResponseWriter, req *http.Request) {
+		proxy.routeMessage(req.RequestURI, w, req)
 	})
 
 	// Jsendify the default handlers
 	router.NotFoundHandler = http.HandlerFunc(notFoundHandler)
 	router.MethodNotAllowedHandler = http.HandlerFunc(notAllowedHandler)
 
-	proxy := proxy{routes: routes}
 
 	// Create the API
 	api := GatewayApi{router: router, service: service, proxy: proxy}
-	//api.mountAuthenticationRoutes(unprotected)
+	api.mountAuthenticationRoutes(auth)
 	//api.mountUserRoutes(protected)
 
 	// Middleware to require login for certain endpoints
@@ -72,14 +73,19 @@ func (a *GatewayApi) authMiddleware(next http.Handler) http.Handler {
 		if _, err := a.service.ValidateToken(token); err == nil {
 			if a.service.Authorize(r.RequestURI, r.Method, token) {
 				// Forward the request
-				a.proxy.routeMessage(r.RequestURI, w, r)
+				next.ServeHTTP(w, r)
+				return
 			}
 			// 403
 			jsend.FormatResponse(w, "The requested resource is not available for your user / group", jsend.Forbidden)
 			return
 		} else {
-			// 401
-			jsend.FormatResponse(w, "Token is invalid. Are you trying to hack us?", jsend.UnAuthorized)
+			if a.service.AuthorizeWithoutToken(r.RequestURI, r.Method) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			jsend.FormatResponse(w, "Not authorized. You must log in to see this resource", jsend.Forbidden)
 			return
 		}
 	})

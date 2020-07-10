@@ -31,15 +31,15 @@ func main() {
 
 	routes := []presentation.ProxyRoute{
 		{
-			DestinationAddress: "http://localhost:61226",
+			DestinationAddress: fmt.Sprintf("http://%s:%s", os.Getenv("USERSERVICE_URL"), "61226"),
 			Target:             "Users",
 		},
 		{
-			DestinationAddress: "http://localhost:61227",
+			DestinationAddress: "http://localhost:61227", // TODO: replace localhost
 			Target:             "Flights",
 		},
 		{
-			DestinationAddress: "http://localhost:61228",
+			DestinationAddress: "http://localhost:61228", // TODO: replace localhost
 			Target:             "Locations",
 		},
 	}

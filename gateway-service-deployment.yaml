@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  namespace: flightlog
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway-service-container
+          image: klyngen/flightlog-gateway:v0.1.2
+          ports:
+            - containerPort: 61225
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: user-persistance-mariadb
+                  key: mariadb-password
+            - name: DATABASE_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: database-host
+            - name: DATABASE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: database-port
+            - name: DATABASE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: database-user
+            - name: USERSERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: userservice-url
+          volumeMounts:
+            - name: config
+              mountPath: "/etc/config"
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+

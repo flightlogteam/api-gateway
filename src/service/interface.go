@@ -1,6 +1,9 @@
 package service
 
-import "github.com/dgrijalva/jwt-go"
+import (
+	"github.com/dgrijalva/jwt-go"
+	"github.com/flightlogteam/api-gateway/models"
+)
 
 type IGatewayService interface {
 	// Validate a user-token
@@ -14,4 +17,11 @@ type IGatewayService interface {
 
 	// Authorize a user to a certain resource
 	Authorize(resource string,  method string, token string) bool
+
+	AuthorizeWithoutToken(resource string, method string) bool
+
+	// Activate a user. This is done by the url given on Email
+	ActivateUser(userId string) error
+
+	RegisterUser(userData models.UserRegistration) (int, error)
 }

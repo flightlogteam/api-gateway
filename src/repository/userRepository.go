@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+
 	"github.com/flightlogteam/api-gateway/models"
 	"github.com/flightlogteam/userservice/userservice"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"log"
 )
 
 func NewUserRepository(serviceUrl string) IUserServiceRepository {
@@ -25,22 +26,43 @@ func NewUserRepository(serviceUrl string) IUserServiceRepository {
 	}
 
 	return &UserRepository{
-		serviceUrl: serviceUrl,
+		serviceUrl:  serviceUrl,
 		userService: userservice.NewUserServiceClient(connection),
 	}
 }
 
 type UserRepository struct {
-	serviceUrl string
+	serviceUrl  string
 	userService userservice.UserServiceClient
 }
 
-func dialUserService(serviceUrl string) (*grpc.ClientConn, error)  {
+func (u *UserRepository) RegisterUser(firstName string, lastName string, email string, username string, password string, privacyLevel int) (int, error) {
+	pvl := userservice.CreateUserRequest_PrivacyLevel(privacyLevel)
+
+	requestBody := userservice.CreateUserRequest{
+		Username:  username,
+		Email:     email,
+		Firstname: firstName,
+		Lastname:  lastName,
+		Level:     pvl,
+		Password:  password,
+	}
+
+	response, err := u.userService.RegisterUser(context.Background(), &requestBody)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(response.Status), nil
+
+}
+
+func dialUserService(serviceUrl string) (*grpc.ClientConn, error) {
 	return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithTransportCredentials(createCredentials()))
 }
 
-
-func (u * UserRepository) ActivateUser(userId string) error {
+func (u *UserRepository) ActivateUser(userId string) error {
 	response, err := u.userService.ActivateUser(context.Background(), &userservice.ActivateUserRequest{UserId: userId})
 
 	if err != nil {
@@ -54,11 +76,9 @@ func (u * UserRepository) ActivateUser(userId string) error {
 	return nil
 }
 
+func (u *UserRepository) LoginUser(username string, email string, password string) (*models.User, error) {
 
-func (u * UserRepository) LoginUser(username string, email string, password string) (*models.User, error) {
-
-	loginRequest := userservice.LoginRequest{ Password: password }
-
+	loginRequest := userservice.LoginRequest{Password: password}
 
 	if len(username) > 0 {
 		loginRequest.UserCredential = &userservice.LoginRequest_Username{Username: username}
@@ -73,22 +93,22 @@ func (u * UserRepository) LoginUser(username string, email string, password stri
 	}
 
 	switch response.Status {
-		case userservice.LoginResponse_SUCCESS:
-			return &models.User{
-				UserId: response.UserId,
-				Role:   response.Role,
-			}, nil
-		case userservice.LoginResponse_INVALID_CREDENTIALS:
-			return nil, ErrorInvalidCredentials
-		case userservice.LoginResponse_NOT_ACTIVATED:
-			return nil, ErrorUserNotActivated
+	case userservice.LoginResponse_SUCCESS:
+		return &models.User{
+			UserId: response.UserId,
+			Role:   response.Role,
+		}, nil
+	case userservice.LoginResponse_INVALID_CREDENTIALS:
+		return nil, ErrorInvalidCredentials
+	case userservice.LoginResponse_NOT_ACTIVATED:
+		return nil, ErrorUserNotActivated
 	}
 
 	return nil, ErrorInternalServer
 }
 
 func createCredentials() credentials.TransportCredentials {
-	creds, err := credentials.NewClientTLSFromFile("servicecertificate.crt", "")
+	creds, err := credentials.NewClientTLSFromFile("/servicecertificate.crt", "")
 	if err != nil {
 		log.Fatalf("Unable to start the Gateway due to missing certificates. Generate please: %v", err)
 	}

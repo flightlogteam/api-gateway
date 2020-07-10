@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: flightlog
+data:
+  database-host: "user-persistance-mariadb.flightlog"
+  database-port: "3306"
+  database-user: "casbin-user"
+  userservice-url: "https://userservice.flightlog"
+

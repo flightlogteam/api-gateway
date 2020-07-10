@@ -1,24 +1,34 @@
-FROM golang:alpine
+FROM golang:alpine AS build_base
+
+# WE NEED GIT
+RUN apk update && apk add --no-cache git
+
+RUN go get -u github.com/flightlogteam/api-gateway
+
+
+#USER appuser
+FROM alpine:3.9
+
 RUN mkdir /app
-WORKDIR /app
-COPY src .
-
-RUN go version
-RUN cat /etc/resolv.conf
-
-## BUILD THE CODE
-RUN go build -o gateway .
 
 RUN apk add openssl
 
-
-# GENERATE CERTIFICATES
+# GENERATE CERTS
 RUN openssl genrsa -out fly.rsa 2048
 RUN openssl rsa -in fly.rsa -pubout > fly.rsa.pub
 
-RUN adduser -S -D -H -h /app appuser
-RUN chown appuser fly.rsa && chown appuser fly.rsa.pub
+COPY --from=build_base /go/bin/api-gateway /app/
 
+WORKDIR /app
+
+
+# CHANGE RIGHTS ON CERTS
+RUN adduser -S  -D appuser
+RUN chown appuser /fly.rsa && chown appuser /fly.rsa.pub && chown appuser ./api-gateway
+
+RUN chmod +x /app/api-gateway
+
+# USE THE APPLICATION-USER
 USER appuser
 
 # SET ENVIRONMENT-VARIABLES
@@ -36,8 +46,8 @@ ARG DATABASE_PORT="3306"
 ENV DATABASE_PORT="${DATABASE_PORT}"
 
 # IF EMPTY SERVICE API WILL START WITH LIMITED FEATURES
-ARG USESSERVICE_URL=""
-ENV USESSERVICE_URL="${USESSERVICE_URL}"
+ARG USERSERVICE_URL=""
+ENV USERSERVICE_URL="${USERSERVICE_URL}"
 
-CMD ["./gateway"]
+CMD ["/app/api-gateway"]
 EXPOSE 61225
