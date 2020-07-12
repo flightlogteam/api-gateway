@@ -3,7 +3,7 @@ FROM golang:alpine AS build_base
 # WE NEED GIT
 RUN apk update && apk add --no-cache git
 
-RUN go get -u github.com/flightlogteam/api-gateway
+RUN go get -u github.com/flightlogteam/api-gateway/src
 
 
 #USER appuser

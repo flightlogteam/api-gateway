@@ -1,6 +1,6 @@
 package repository
 
-import "github.com/flightlogteam/api-gateway/models"
+import "github.com/flightlogteam/api-gateway/src/models"
 
 type IUserServiceRepository interface {
 	// Activate the user, so that the user can log in

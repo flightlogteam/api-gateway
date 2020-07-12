@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/flightlogteam/api-gateway/models"
+	"github.com/flightlogteam/api-gateway/src/models"
 	"github.com/gorilla/mux"
 	"github.com/klyngen/jsend"
 	"log"

@@ -2,7 +2,7 @@ package service
 
 import (
 	"github.com/dgrijalva/jwt-go"
-	"github.com/flightlogteam/api-gateway/models"
+	"github.com/flightlogteam/api-gateway/src/models"
 )
 
 type IGatewayService interface {

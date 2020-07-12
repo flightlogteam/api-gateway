@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/flightlogteam/api-gateway/models"
+	"github.com/flightlogteam/api-gateway/src/models"
 	"github.com/flightlogteam/userservice/userservice"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

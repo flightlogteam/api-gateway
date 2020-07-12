@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	xormadapter "github.com/casbin/xorm-adapter/v2"
-	"github.com/flightlogteam/api-gateway/presentation"
-	"github.com/flightlogteam/api-gateway/repository"
-	"github.com/flightlogteam/api-gateway/service"
+	"github.com/flightlogteam/api-gateway/src/presentation"
+	"github.com/flightlogteam/api-gateway/src/repository"
+	"github.com/flightlogteam/api-gateway/src/service"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"os"

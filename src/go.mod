@@ -1,4 +1,4 @@
-module github.com/flightlogteam/api-gateway
+module github.com/flightlogteam/api-gateway/src
 
 go 1.14
 

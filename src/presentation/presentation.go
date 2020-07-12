@@ -2,7 +2,7 @@ package presentation
 
 import (
 	"fmt"
-	"github.com/flightlogteam/api-gateway/service"
+	"github.com/flightlogteam/api-gateway/src/service"
 	"github.com/gorilla/mux"
 	"github.com/klyngen/jsend"
 	"log"
