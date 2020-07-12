@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: gateway-service-container
-          image: klyngen/flightlog-gateway:v0.1.2
+          image: klyngen/flightlog-gateway:v0.1.5
           ports:
             - containerPort: 61225
           env:

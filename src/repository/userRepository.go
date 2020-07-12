@@ -15,6 +15,7 @@ import (
 func NewUserRepository(serviceUrl string) IUserServiceRepository {
 	log.Println("Initializing the UserRepository")
 
+
 	if len(serviceUrl) == 0 {
 		log.Println("No user-service is configured. Repository will not work")
 		return &UserRepository{}

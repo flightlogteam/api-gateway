@@ -4,7 +4,9 @@ metadata:
   name: gateway
 build:
   artifacts:
-  - image: klyngen/flightlog-gateway
+  - image: flightlog-gateway
+    docker:
+      dockerfile: Dockerfile-dev
 deploy:
   kubectl:
     manifests:

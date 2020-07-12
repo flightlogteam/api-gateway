@@ -24,15 +24,11 @@ func main() {
 		log.Fatalf("Unable to establish casbin-adapter: %v", err)
 	}
 
-	userServiceName := getUserService()
 
-	log.Printf("Fetched user-service-name: %s", userServiceName)
-	fmt.Printf("Fetched user-service-name: %s", userServiceName)
-
-	gatewayService := service.NewGatewayService("fly.rsa.pub",
-		"fly.rsa",
+	gatewayService := service.NewGatewayService("/etc/certificates/fly.rsa.pub",
+		"/etc/certificates/fly.rsa",
 		adapter,
-		userServiceName)
+		getUserService())
 
 	routes := []presentation.ProxyRoute{
 		{
