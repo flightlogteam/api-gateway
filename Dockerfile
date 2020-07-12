@@ -17,7 +17,7 @@ RUN apk add openssl
 RUN openssl genrsa -out fly.rsa 2048
 RUN openssl rsa -in fly.rsa -pubout > fly.rsa.pub
 
-COPY --from=build_base /go/bin/api-gateway /app/
+COPY --from=build_base /go/bin/src /app/api-gateway
 
 WORKDIR /app
 

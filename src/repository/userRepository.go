@@ -108,7 +108,7 @@ func (u *UserRepository) LoginUser(username string, email string, password strin
 }
 
 func createCredentials() credentials.TransportCredentials {
-	creds, err := credentials.NewClientTLSFromFile("/servicecertificate.crt", "")
+	creds, err := credentials.NewClientTLSFromFile("/etc/certificates/server.crt", "")
 	if err != nil {
 		log.Fatalf("Unable to start the Gateway due to missing certificates. Generate please: %v", err)
 	}
