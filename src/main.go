@@ -75,6 +75,7 @@ type databaseConfiguration struct {
 	username string
 	port     string
 	hostname string
+	baseURL  string
 }
 
 func (c *databaseConfiguration) IsValidConfiguration() bool {

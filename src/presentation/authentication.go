@@ -15,6 +15,7 @@ import (
 type credentials struct {
 	Username string
 	Password string
+	Email    string
 }
 
 func (f *GatewayApi) mountAuthenticationRoutes(router *mux.Router) {
@@ -96,7 +97,17 @@ func (f *GatewayApi) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := f.service.IssueToken(creds.Username, creds.Password)
+	var userCredential string
+
+	if len(creds.Email) > 0 {
+		userCredential = creds.Email
+	}
+
+	if len(creds.Username) > 0 {
+		userCredential = creds.Username
+	}
+
+	token, err := f.service.IssueToken(userCredential, creds.Password)
 
 	w.Header().Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
