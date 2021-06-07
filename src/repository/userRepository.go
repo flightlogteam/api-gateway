@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/flightlogteam/api-gateway/src/models"
-	"github.com/flightlogteam/userservice/userservice"
+	"github.com/flightlogteam/userservice/grpc/userservice"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -15,16 +15,19 @@ import (
 func NewUserRepository(serviceUrl string) IUserServiceRepository {
 	log.Println("Initializing the UserRepository")
 
-
 	if len(serviceUrl) == 0 {
 		log.Println("No user-service is configured. Repository will not work")
 		return &UserRepository{}
 	}
+
+	log.Printf("attempting to dial %v", serviceUrl)
 	connection, err := dialUserService(serviceUrl)
 
 	if err != nil {
 		log.Printf("Unable to dial userService during userActivation due to error: %v", err)
 	}
+
+	log.Println("Connected to a userservice")
 
 	return &UserRepository{
 		serviceUrl:  serviceUrl,
@@ -60,7 +63,8 @@ func (u *UserRepository) RegisterUser(firstName string, lastName string, email s
 }
 
 func dialUserService(serviceUrl string) (*grpc.ClientConn, error) {
-	return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithTransportCredentials(createCredentials()))
+	return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithInsecure())
+	//return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithTransportCredentials(createCredentials()))
 }
 
 func (u *UserRepository) ActivateUser(userId string) error {

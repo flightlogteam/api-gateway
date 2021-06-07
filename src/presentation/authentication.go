@@ -3,14 +3,14 @@ package presentation
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/flightlogteam/api-gateway/src/models"
 	"github.com/gorilla/mux"
 	"github.com/klyngen/jsend"
-	"log"
-	"net/http"
 )
-
 
 type credentials struct {
 	Username string
@@ -98,12 +98,18 @@ func (f *GatewayApi) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	token, err := f.service.IssueToken(creds.Username, creds.Password)
 
-	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	w.Header().Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	if err != nil {
 		jsend.FormatResponse(w, err.Error(), jsend.UnAuthorized)
 		return
 	}
 
-	jsend.FormatResponse(w, "Authenticated!", jsend.Success)
+	response := struct {
+		AccessToken string
+	}{
+		AccessToken: token,
+	}
+
+	jsend.FormatResponse(w, response, jsend.Success)
 }
