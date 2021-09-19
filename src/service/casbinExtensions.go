@@ -11,7 +11,6 @@ func isOwnerWrapper(args ...interface{}) (interface{}, error) {
 	return bool(isOwner(reqSub, reqObj, polObj)), nil
 }
 
-
 func isOwner(reqSub string, reqObj string, polObj string) bool {
 	// First find out if there is a UID
 	if strings.Contains(polObj, "{uid}") {

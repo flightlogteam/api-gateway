@@ -15,10 +15,7 @@ import (
 func main() {
 	// Get configuration from environment variables
 	config := getConfiguration()
-
-	log.Print(config)
-
-	// Create the casbin-adapter
+	serviceConfig := getServiceConfiguration()
 
 	adapter, err := xormadapter.NewAdapter("mysql", config.createConnectionString())
 	if err != nil {
@@ -28,15 +25,15 @@ func main() {
 	gatewayService := service.NewGatewayService("/etc/certificates/fly.rsa.pub",
 		"/etc/certificates/fly.rsa",
 		adapter,
-		getUserService())
+		getUserService(serviceConfig.userServiceURL))
 
 	routes := []presentation.ProxyRoute{
 		{
-			DestinationAddress: fmt.Sprintf("http://%s:%s", os.Getenv("USERSERVICE_URL"), "61226"),
+			DestinationAddress: fmt.Sprintf("%s:%s", serviceConfig.userServiceURL, serviceConfig.userServicePort),
 			Target:             "Users",
 		},
 		{
-			DestinationAddress: "http://localhost:61227", // TODO: replace localhost
+			DestinationAddress: fmt.Sprintf("%s:%s", serviceConfig.flightServiceURL, serviceConfig.flightServicePort),
 			Target:             "Flights",
 		},
 		{
@@ -44,6 +41,8 @@ func main() {
 			Target:             "Locations",
 		},
 	}
+
+	log.Println(serviceConfig)
 
 	api := presentation.NewGatewayApi(gatewayService, routes)
 	api.StartAPI()
@@ -57,8 +56,8 @@ func (c *databaseConfiguration) createConnectionString() string {
 	return fmt.Sprintf("%v:%v@/", c.username, c.password)
 }
 
-func getUserService() repository.IUserServiceRepository {
-	return repository.NewUserRepository(os.Getenv("USERSERVICE_URL"))
+func getUserService(serviceURL string) repository.IUserServiceRepository {
+	return repository.NewUserRepository(serviceURL)
 }
 
 func getConfiguration() databaseConfiguration {
@@ -68,6 +67,22 @@ func getConfiguration() databaseConfiguration {
 		port:     os.Getenv("DATABASE_PORT"),
 		hostname: os.Getenv("DATABASE_HOSTNAME"),
 	}
+}
+
+func getServiceConfiguration() serviceConfiguration {
+	return serviceConfiguration{
+		flightServiceURL:  os.Getenv("SERVICE_FLIGHTSERVICE_URL"),
+		flightServicePort: os.Getenv("SERVICE_FLIGHTSERVICE_PORT"),
+		userServiceURL:    os.Getenv("SERVICE_USERSERVICE_URL"),
+		userServicePort:   os.Getenv("SERVICE_USERSERVICE_PORT"),
+	}
+}
+
+type serviceConfiguration struct {
+	flightServiceURL  string
+	flightServicePort string
+	userServiceURL    string
+	userServicePort   string
 }
 
 type databaseConfiguration struct {

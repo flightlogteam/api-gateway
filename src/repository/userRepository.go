@@ -43,6 +43,7 @@ type UserRepository struct {
 func (u *UserRepository) RegisterUser(firstName string, lastName string, email string, username string, password string, privacyLevel int) (int, error) {
 	pvl := userservice.CreateUserRequest_PrivacyLevel(privacyLevel)
 
+	log.Println(u.userService)
 	requestBody := userservice.CreateUserRequest{
 		Username:  username,
 		Email:     email,
@@ -63,6 +64,7 @@ func (u *UserRepository) RegisterUser(firstName string, lastName string, email s
 }
 
 func dialUserService(serviceUrl string) (*grpc.ClientConn, error) {
+	log.Println(serviceUrl)
 	return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithInsecure())
 	//return grpc.Dial(fmt.Sprintf("%s:%s", serviceUrl, "61226"), grpc.WithTransportCredentials(createCredentials()))
 }

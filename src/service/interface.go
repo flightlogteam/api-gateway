@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/dgrijalva/jwt-go"
 	"github.com/flightlogteam/api-gateway/src/models"
+	"github.com/golang-jwt/jwt"
 )
 
 type IGatewayService interface {
@@ -16,7 +16,7 @@ type IGatewayService interface {
 	IssueToken(userName string, password string) (string, error)
 
 	// Authorize a user to a certain resource
-	Authorize(resource string,  method string, token string) bool
+	Authorize(resource string, method string, token string) bool
 
 	AuthorizeWithoutToken(resource string, method string) bool
 

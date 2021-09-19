@@ -8,6 +8,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/flightlogteam/userservice/grpc v0.0.5
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/mux v1.6.2
 	github.com/klyngen/jsend v0.0.0-20190716184451-284cbade049f
 	github.com/kr/pretty v0.2.0 // indirect

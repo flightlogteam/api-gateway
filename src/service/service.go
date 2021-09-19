@@ -2,47 +2,46 @@ package service
 
 import (
 	"crypto/rsa"
-	"github.com/casbin/casbin/v2"
-	"github.com/casbin/casbin/v2/persist"
-	"github.com/casbin/casbin/v2/util"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/flightlogteam/api-gateway/src/common"
-	"github.com/flightlogteam/api-gateway/src/models"
-	"github.com/flightlogteam/api-gateway/src/repository"
-	"github.com/pkg/errors"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"regexp"
-	"strconv"
 	"time"
+
+	"github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v2/persist"
+	"github.com/casbin/casbin/v2/util"
+	"github.com/flightlogteam/api-gateway/src/common"
+	"github.com/flightlogteam/api-gateway/src/models"
+	"github.com/flightlogteam/api-gateway/src/repository"
+	"github.com/golang-jwt/jwt"
+	"github.com/pkg/errors"
 )
 
 type GatewayService struct {
-	signingKey *rsa.PrivateKey
-	validationKey *rsa.PublicKey
+	signingKey     *rsa.PrivateKey
+	validationKey  *rsa.PublicKey
 	casbinEnforcer *casbin.Enforcer
 	userRepository repository.IUserServiceRepository
 }
 
-
 func NewGatewayService(
-		publicKeyPath string,
-		privateKeyPath string,
-		storageAdapter persist.Adapter,
-		userRepository repository.IUserServiceRepository,
-	) IGatewayService {
+	publicKeyPath string,
+	privateKeyPath string,
+	storageAdapter persist.Adapter,
+	userRepository repository.IUserServiceRepository,
+) IGatewayService {
 
 	// Load certificates into memory
 	signingKey, validationKey := getSigningKeys(privateKeyPath, publicKeyPath)
 
 	return &GatewayService{
-		signingKey: signingKey,
-		validationKey: validationKey,
+		signingKey:     signingKey,
+		validationKey:  validationKey,
 		casbinEnforcer: createCasbinEnforcer(storageAdapter),
 		userRepository: userRepository,
 	}
 }
-
 
 func getSigningKeys(privateKeyPath string, publicKeyPath string) (*rsa.PrivateKey, *rsa.PublicKey) {
 	var signBytes, verifyBytes []byte
@@ -68,7 +67,7 @@ func getSigningKeys(privateKeyPath string, publicKeyPath string) (*rsa.PrivateKe
 	return signKey, verifyKey
 }
 
-func (k * GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) {
+func (k *GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return k.validationKey, nil
 	})
@@ -77,24 +76,28 @@ func (k * GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) 
 		return nil, err
 	}
 
-	// Check that the token has not expired
-	expiration := token.Claims.(jwt.MapClaims)["exp"].(string)
-	expirationInt, err := strconv.ParseInt(expiration, 10, 64)
+	var expiration time.Time
+	switch iat := token.Claims.(jwt.MapClaims)["exp"].(type) {
+	case float64:
+		expiration = time.Unix(int64(iat), 0)
+	case json.Number:
+		v, _ := iat.Int64()
+		expiration = time.Unix(v, 0)
+	default:
+		return nil, errors.New("Invalid time. Token is garbage")
+	}
 
-	if err != nil { return nil, err }
-
-	expirationTime := time.Unix(expirationInt, 0)
-
-	if expirationTime.Before(time.Now()) {
+	if expiration.Before(time.Now()) {
 		return nil, errors.New("Expired token")
 	}
 
 	return token.Claims, err
 }
 
-func (k * GatewayService) RegisterUser(userData models.UserRegistration) (int, error) {
+func (k *GatewayService) RegisterUser(userData models.UserRegistration) (int, error) {
 	// Validate the data
 	// Is this an valid email?
+	log.Println(userData)
 	isEmail, _ := regexp.MatchString(`^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$`, userData.Email)
 
 	if userData.PrivacyLevel > 2 || userData.PrivacyLevel < 0 {
@@ -110,11 +113,11 @@ func (k * GatewayService) RegisterUser(userData models.UserRegistration) (int, e
 	return userResponse, err
 }
 
-func (k * GatewayService) RenewToken(refreshToken string) string {
+func (k *GatewayService) RenewToken(refreshToken string) string {
 	return ""
 }
 
-func (k * GatewayService) IssueToken(userCredential string, password string) (string, error) {
+func (k *GatewayService) IssueToken(userCredential string, password string) (string, error) {
 	// Determine if user-credential is an email or not
 	isEmail, _ := regexp.MatchString(`^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$`, userCredential)
 
@@ -137,11 +140,10 @@ func (k * GatewayService) IssueToken(userCredential string, password string) (st
 
 	token, err := k.createLoginToken(user.Role, user.UserId)
 
-
 	return token, err
 }
 
-func (k * GatewayService) Authorize(resource string, method string, tokenString string) bool {
+func (k *GatewayService) Authorize(resource string, method string, tokenString string) bool {
 	// Get role and userId
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return k.validationKey, nil
@@ -153,9 +155,15 @@ func (k * GatewayService) Authorize(resource string, method string, tokenString 
 	userID := token.Claims.(jwt.MapClaims)["UserID"]
 	role := token.Claims.(jwt.MapClaims)["Role"]
 
+	log.Println(role)
+
 	if role == "" {
 		role = "anonymous"
 	}
+
+	k.casbinEnforcer.AddRoleForUser(userID.(string), "default")
+	log.Println(resource)
+	log.Println(role, userID, resource, method)
 
 	res, err := k.casbinEnforcer.Enforce(role, userID, resource, method)
 
@@ -186,14 +194,16 @@ func createCasbinEnforcer(persist persist.Adapter) *casbin.Enforcer {
 }
 
 // CreateVerificationToken creates a token used in an verification-email
-func (k * GatewayService) createLoginToken(role string, ID string) (string, error) {
+func (k *GatewayService) createLoginToken(role string, ID string) (string, error) {
 	expiration := time.Now().Add(time.Second * time.Duration(3600)).Unix()
+
+	log.Println(expiration)
 
 	// Lets keep the token quite light
 	claims := &Claims{
 		StandardClaims: jwt.StandardClaims{ExpiresAt: expiration},
 		UserID:         ID,
-		Role: role,
+		Role:           role,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -202,11 +212,21 @@ func (k * GatewayService) createLoginToken(role string, ID string) (string, erro
 }
 
 // This wrapper is almost too thin
-func (k * GatewayService) ActivateUser(userId string) error {
-	return k.userRepository.ActivateUser(userId)
+func (k *GatewayService) ActivateUser(userId string) error {
+
+	err := k.userRepository.ActivateUser(userId)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = k.casbinEnforcer.AddRoleForUser(userId, "default")
+
+	return err
+
 }
 
-func (k * GatewayService) AuthorizeWithoutToken(resource string, method string) bool {
+func (k *GatewayService) AuthorizeWithoutToken(resource string, method string) bool {
 	res, err := k.casbinEnforcer.Enforce("", "anonymous", resource, method)
 	if err != nil {
 		return false
@@ -220,7 +240,7 @@ type VerificationClaims struct {
 }
 
 type Claims struct {
-	Role string
-	UserID    string
+	Role   string
+	UserID string
 	jwt.StandardClaims
 }
