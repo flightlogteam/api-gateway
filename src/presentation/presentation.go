@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/flightlogteam/api-gateway/src/service"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/klyngen/jsend"
 )
@@ -20,6 +21,7 @@ type GatewayApi struct {
 func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) GatewayApi {
 	router := mux.NewRouter()
 	protected := router.PathPrefix("/api").Subrouter()
+
 	auth := router.PathPrefix("/auth").Subrouter()
 
 	// Implements the proxy
@@ -32,8 +34,9 @@ func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) Gateway
 	// Create the API
 	api := GatewayApi{router: router, service: service, proxy: proxy}
 
+	auth.HandleFunc("/verify", api.verifyUserEndpoint).Methods("GET", "OPTIONS")
+
 	protected.Use(api.authMiddleware)
-	api.mountAuthenticationRoutes(auth)
 
 	protected.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		proxy.routeMessage(req.RequestURI, w, req)
@@ -45,12 +48,32 @@ func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) Gateway
 	return api
 }
 
+func (a *GatewayApi) verifyUserEndpoint(writer http.ResponseWriter, request *http.Request) {
+	authorizationHeader := request.Header.Get("Authorization")
+	token := strings.Split(authorizationHeader, "Bearer ")[1]
+
+	status, err := a.service.VerifyUser(token)
+
+	if err != nil {
+		log.Println(err)
+		jsend.FormatResponse(writer, "Unable to verify the user", jsend.BadRequest)
+		return
+	}
+
+	jsend.FormatResponse(writer, status, jsend.Success)
+}
+
 func (a *GatewayApi) StartAPI() {
 	printRoutes(a.router)
 
 	log.Printf("Started FlightLogger on port: %s", "61225")
 
-	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), a.router)
+	headersOK := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type"})
+	originsOK := handlers.AllowedOrigins([]string{"*"})
+	methodsOK := handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS", "DELETE", "PUT"})
+
+	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), handlers.CORS(headersOK, originsOK, methodsOK)(a.router))
+	//err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), a.router)
 
 	if err != nil {
 		log.Fatalf("Unable to start the API due to the following error: \n %v", err)
@@ -61,6 +84,7 @@ func (a *GatewayApi) StartAPI() {
 func (a *GatewayApi) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Will result in something like Bearer <TOKEN>
+
 		authorizationHeader := r.Header.Get("Authorization")
 
 		if len(authorizationHeader) > 0 {

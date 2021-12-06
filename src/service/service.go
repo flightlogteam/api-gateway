@@ -3,7 +3,6 @@ package service
 import (
 	"crypto/rsa"
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"regexp"
 	"time"
@@ -15,65 +14,68 @@ import (
 	"github.com/flightlogteam/api-gateway/src/models"
 	"github.com/flightlogteam/api-gateway/src/repository"
 	"github.com/golang-jwt/jwt"
+	"github.com/klyngen/golang-oidc-discovery"
 	"github.com/pkg/errors"
 )
 
 type GatewayService struct {
-	signingKey     *rsa.PrivateKey
-	validationKey  *rsa.PublicKey
-	casbinEnforcer *casbin.Enforcer
-	userRepository repository.IUserServiceRepository
+	casbinEnforcer  *casbin.Enforcer
+	userRepository  repository.IUserServiceRepository
+	discoveryClient *oidcdiscovery.OidcDiscoveryClient
+	publicKeys      []oidcdiscovery.PublicKey
 }
 
 func NewGatewayService(
-	publicKeyPath string,
-	privateKeyPath string,
 	storageAdapter persist.Adapter,
 	userRepository repository.IUserServiceRepository,
+	authenticationProvider string,
 ) IGatewayService {
+	discoveryClient, err := oidcdiscovery.NewOidcDiscoveryClient(authenticationProvider)
 
-	// Load certificates into memory
-	signingKey, validationKey := getSigningKeys(privateKeyPath, publicKeyPath)
+	if err != nil {
+		log.Fatalf("Could not discover any auth-provider on %v, with error %v", authenticationProvider, err)
+	}
+
+	log.Println("Trying to log the jwks-url", discoveryClient.DiscoveryDocument().JwksURI, discoveryClient.DiscoveryDocument().Issuer)
+	publicKeys, err := discoveryClient.GetCertificates()
+
+	if err != nil {
+		log.Fatalf("Unable to parse keys of token provider. Gateway cannot function", authenticationProvider)
+	}
 
 	return &GatewayService{
-		signingKey:     signingKey,
-		validationKey:  validationKey,
-		casbinEnforcer: createCasbinEnforcer(storageAdapter),
-		userRepository: userRepository,
+		casbinEnforcer:  createCasbinEnforcer(storageAdapter),
+		userRepository:  userRepository,
+		discoveryClient: discoveryClient,
+		publicKeys:      publicKeys,
 	}
 }
 
-func getSigningKeys(privateKeyPath string, publicKeyPath string) (*rsa.PrivateKey, *rsa.PublicKey) {
-	var signBytes, verifyBytes []byte
-	var signKey *rsa.PrivateKey
-	var verifyKey *rsa.PublicKey
-	var err error
+func (k *GatewayService) getPublicKey(token *jwt.Token) (*rsa.PublicKey, error) {
+	cert := ""
 
-	if signBytes, err = ioutil.ReadFile(privateKeyPath); err != nil {
-		log.Fatalf("Unable to read PrivateKey: %v", err)
+	for _, key := range k.publicKeys {
+		if token.Header["kid"] == key.Kid {
+			cert = key.GetCertificate()
+		}
+	}
+	log.Println(cert)
+
+	if cert == "" {
+		err := errors.New("Unable to find appropriate key.")
+		return nil, err
 	}
 
-	if signKey, err = jwt.ParseRSAPrivateKeyFromPEM(signBytes); err != nil {
-		log.Fatalf("Unable to parse PrivateKey: %v", err)
-	}
-
-	if verifyBytes, err = ioutil.ReadFile(publicKeyPath); err != nil {
-		log.Fatalf("Unable to read PublicKey: %v", err)
-	}
-
-	if verifyKey, err = jwt.ParseRSAPublicKeyFromPEM(verifyBytes); err != nil {
-		log.Fatalf("Unable to parse PublicKey: %v", err)
-	}
-	return signKey, verifyKey
+	return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
 }
 
 func (k *GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return k.validationKey, nil
+		return k.getPublicKey(token)
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Unable to validate token")
 	}
 
 	var expiration time.Time
@@ -94,6 +96,7 @@ func (k *GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) {
 	return token.Claims, err
 }
 
+// RegisterUser Deprecated
 func (k *GatewayService) RegisterUser(userData models.UserRegistration) (int, error) {
 	// Validate the data
 	// Is this an valid email?
@@ -108,7 +111,7 @@ func (k *GatewayService) RegisterUser(userData models.UserRegistration) (int, er
 		return 0, common.ServiceMissingRequiredData
 	}
 
-	userResponse, err := k.userRepository.RegisterUser(userData.FirstName, userData.LastName, userData.Email, userData.Username, userData.Password, userData.PrivacyLevel)
+	userResponse, err := k.userRepository.RegisterUser("", userData.FirstName, userData.LastName, userData.Email, userData.Username, userData.PrivacyLevel)
 
 	return userResponse, err
 }
@@ -117,61 +120,31 @@ func (k *GatewayService) RenewToken(refreshToken string) string {
 	return ""
 }
 
-func (k *GatewayService) IssueToken(userCredential string, password string) (string, error) {
-	// Determine if user-credential is an email or not
-	isEmail, _ := regexp.MatchString(`^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$`, userCredential)
-
-	var email, username string
-
-	if isEmail {
-		email = userCredential
-	} else {
-		username = userCredential
-	}
-
-	// Do a LOGIN-Request
-
-	user, err := k.userRepository.LoginUser(username, email, password)
-
-	// If we could not login. We dont issue a token
-	if err != nil {
-		return "", err
-	}
-
-	token, err := k.createLoginToken(user.Role, user.UserId)
-
-	return token, err
-}
-
 func (k *GatewayService) Authorize(resource string, method string, tokenString string) bool {
-	// Get role and userId
+
+	role := ""
+
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return k.validationKey, nil
+		return k.getPublicKey(token)
 	})
 
 	if err != nil {
 		return false
 	}
-	userID := token.Claims.(jwt.MapClaims)["UserID"]
-	role := token.Claims.(jwt.MapClaims)["Role"]
 
-	log.Println(role)
-
-	if role == "" {
-		role = "anonymous"
+	userID := token.Claims.(jwt.MapClaims)["sub"]
+	roles, err := k.casbinEnforcer.GetRolesForUser(userID.(string))
+	if len(roles) > 0 {
+		role = roles[0]
+	} else {
+		k.casbinEnforcer.AddRoleForUser(userID.(string), "default")
 	}
-
-	k.casbinEnforcer.AddRoleForUser(userID.(string), "default")
-	log.Println(resource)
-	log.Println(role, userID, resource, method)
-
 	res, err := k.casbinEnforcer.Enforce(role, userID, resource, method)
 
 	if err != nil {
 		log.Printf("Authorization failed with following error: %v", err)
 		return false
 	}
-	// Enforce
 
 	return res
 }
@@ -193,24 +166,6 @@ func createCasbinEnforcer(persist persist.Adapter) *casbin.Enforcer {
 	return cs
 }
 
-// CreateVerificationToken creates a token used in an verification-email
-func (k *GatewayService) createLoginToken(role string, ID string) (string, error) {
-	expiration := time.Now().Add(time.Second * time.Duration(3600)).Unix()
-
-	log.Println(expiration)
-
-	// Lets keep the token quite light
-	claims := &Claims{
-		StandardClaims: jwt.StandardClaims{ExpiresAt: expiration},
-		UserID:         ID,
-		Role:           role,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-
-	return token.SignedString(k.signingKey)
-}
-
 // This wrapper is almost too thin
 func (k *GatewayService) ActivateUser(userId string) error {
 
@@ -224,6 +179,43 @@ func (k *GatewayService) ActivateUser(userId string) error {
 
 	return err
 
+}
+
+func (k *GatewayService) VerifyUser(tokenString string) (bool, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return k.getPublicKey(token)
+	})
+
+	if err != nil {
+		return false, errors.Wrap(err, "Could not read token")
+	}
+
+	userID := token.Claims.(jwt.MapClaims)["sub"]
+	userActivated := token.Claims.(jwt.MapClaims)["email_verified"].(bool)
+
+	user, err := k.userRepository.GetUserById(userID.(string))
+
+	if user != nil {
+		return true, nil
+	}
+
+	if userActivated {
+		_, err = k.userRepository.RegisterUser(userID.(string), tokenParameter(token, "given_name").(string), tokenParameter(token, "family_name").(string), tokenParameter(token, "email").(string), "", 1)
+
+		if err != nil {
+			return false, errors.Wrap(err, "Unable to create the user")
+		}
+
+		k.userRepository.ActivateUser(userID.(string))
+		return true, nil
+	}
+
+	return false, nil
+
+}
+
+func tokenParameter(token *jwt.Token, parameter string) interface{} {
+	return token.Claims.(jwt.MapClaims)[parameter]
 }
 
 func (k *GatewayService) AuthorizeWithoutToken(resource string, method string) bool {

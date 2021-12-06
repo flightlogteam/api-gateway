@@ -10,5 +10,7 @@ type IUserServiceRepository interface {
 	LoginUser(username string, email string, password string) (*models.User, error)
 
 	// RegisterUser registers a user
-	RegisterUser(firstName string, lastName string, email string, username string, password string, privacyLevel int) (int, error)
+	RegisterUser(id string, firstName string, lastName string, email string, username string, privacyLevel int) (int, error)
+
+	GetUserById(userId string) (*models.UserWithPrivacy, error)
 }

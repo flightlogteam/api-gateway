@@ -40,17 +40,16 @@ type UserRepository struct {
 	userService userservice.UserServiceClient
 }
 
-func (u *UserRepository) RegisterUser(firstName string, lastName string, email string, username string, password string, privacyLevel int) (int, error) {
+func (u *UserRepository) RegisterUser(id string, firstName string, lastName string, email string, username string, privacyLevel int) (int, error) {
 	pvl := userservice.CreateUserRequest_PrivacyLevel(privacyLevel)
 
-	log.Println(u.userService)
 	requestBody := userservice.CreateUserRequest{
+		Id:        id,
 		Username:  username,
 		Email:     email,
 		Firstname: firstName,
 		Lastname:  lastName,
 		Level:     pvl,
-		Password:  password,
 	}
 
 	response, err := u.userService.RegisterUser(context.Background(), &requestBody)
@@ -112,6 +111,23 @@ func (u *UserRepository) LoginUser(username string, email string, password strin
 	}
 
 	return nil, ErrorInternalServer
+}
+
+func (u *UserRepository) GetUserById(id string) (*models.UserWithPrivacy, error) {
+	request := userservice.UserByIdRequest{
+		UserId: id,
+	}
+
+	response, err := u.userService.UserByUserId(context.Background(), &request)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.UserWithPrivacy{
+		Activated:    response.Active,
+		PrivacyLevel: int(response.PrivacyLevel.Number()),
+	}, nil
 }
 
 func createCredentials() credentials.TransportCredentials {

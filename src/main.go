@@ -22,10 +22,11 @@ func main() {
 		log.Fatalf("Unable to establish casbin-adapter: %v", err)
 	}
 
-	gatewayService := service.NewGatewayService("/etc/certificates/fly.rsa.pub",
-		"/etc/certificates/fly.rsa",
+	gatewayService := service.NewGatewayService(
 		adapter,
-		getUserService(serviceConfig.userServiceURL))
+		getUserService(serviceConfig.userServiceURL),
+		serviceConfig.authenticationProvider,
+	)
 
 	routes := []presentation.ProxyRoute{
 		{
@@ -71,18 +72,20 @@ func getConfiguration() databaseConfiguration {
 
 func getServiceConfiguration() serviceConfiguration {
 	return serviceConfiguration{
-		flightServiceURL:  os.Getenv("SERVICE_FLIGHTSERVICE_URL"),
-		flightServicePort: os.Getenv("SERVICE_FLIGHTSERVICE_PORT"),
-		userServiceURL:    os.Getenv("SERVICE_USERSERVICE_URL"),
-		userServicePort:   os.Getenv("SERVICE_USERSERVICE_PORT"),
+		flightServiceURL:       os.Getenv("SERVICE_FLIGHTSERVICE_URL"),
+		flightServicePort:      os.Getenv("SERVICE_FLIGHTSERVICE_PORT"),
+		userServiceURL:         os.Getenv("SERVICE_USERSERVICE_URL"),
+		userServicePort:        os.Getenv("SERVICE_USERSERVICE_PORT"),
+		authenticationProvider: os.Getenv("AUTHENTICATION_PROVIDER"),
 	}
 }
 
 type serviceConfiguration struct {
-	flightServiceURL  string
-	flightServicePort string
-	userServiceURL    string
-	userServicePort   string
+	flightServiceURL       string
+	flightServicePort      string
+	userServiceURL         string
+	userServicePort        string
+	authenticationProvider string
 }
 
 type databaseConfiguration struct {
