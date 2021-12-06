@@ -13,7 +13,8 @@ COPY src/ /src
 RUN ls src
 WORKDIR /src
 
-RUN go install github.com/mitranim/gow
+RUN go install github.com/mitranim/gow@latest
+
 RUN go build -o /api-gateway
 
 CMD ["gow", "run", "."]
