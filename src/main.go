@@ -30,16 +30,12 @@ func main() {
 
 	routes := []presentation.ProxyRoute{
 		{
-			DestinationAddress: fmt.Sprintf("%s:%s", serviceConfig.userServiceURL, serviceConfig.userServicePort),
+			DestinationAddress: fmt.Sprintf("%s:%s", serviceConfig.userServiceURL, serviceConfig.userServiceRESTPort),
 			Target:             "Users",
 		},
 		{
 			DestinationAddress: fmt.Sprintf("%s:%s", serviceConfig.flightServiceURL, serviceConfig.flightServicePort),
 			Target:             "Flights",
-		},
-		{
-			DestinationAddress: "http://localhost:61228", // TODO: replace localhost
-			Target:             "Locations",
 		},
 	}
 
@@ -76,6 +72,7 @@ func getServiceConfiguration() serviceConfiguration {
 		flightServicePort:      os.Getenv("SERVICE_FLIGHTSERVICE_PORT"),
 		userServiceURL:         os.Getenv("SERVICE_USERSERVICE_URL"),
 		userServicePort:        os.Getenv("SERVICE_USERSERVICE_PORT"),
+		userServiceRESTPort:    os.Getenv("SERVICE_USERSERVICE_REST_PORT"),
 		authenticationProvider: os.Getenv("AUTHENTICATION_PROVIDER"),
 	}
 }
@@ -85,6 +82,7 @@ type serviceConfiguration struct {
 	flightServicePort      string
 	userServiceURL         string
 	userServicePort        string
+	userServiceRESTPort    string
 	authenticationProvider string
 }
 

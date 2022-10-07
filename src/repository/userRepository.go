@@ -21,7 +21,7 @@ func NewUserRepository(serviceUrl string) IUserServiceRepository {
 	}
 
 	log.Printf("attempting to dial %v", serviceUrl)
-	connection, err := dialUserService(serviceUrl)
+	connection, err := dialUserService("userservice")
 
 	if err != nil {
 		log.Printf("Unable to dial userService during userActivation due to error: %v", err)
