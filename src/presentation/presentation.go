@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/flightlogteam/api-gateway/src/service"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/klyngen/jsend"
 )
@@ -20,8 +19,8 @@ type GatewayApi struct {
 
 func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) GatewayApi {
 	router := mux.NewRouter()
-	protected := router.PathPrefix("/api").Subrouter()
 
+	protected := router.PathPrefix("/api").Subrouter()
 	auth := router.PathPrefix("/auth").Subrouter()
 
 	// Implements the proxy
@@ -36,8 +35,6 @@ func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) Gateway
 
 	auth.HandleFunc("/verify", api.verifyUserEndpoint).Methods("GET", "OPTIONS")
 
-	protected.Use(api.authMiddleware)
-
 	protected.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		proxy.routeMessage(req.RequestURI, w, req)
 	})
@@ -45,13 +42,23 @@ func NewGatewayApi(service service.IGatewayService, routes []ProxyRoute) Gateway
 	// Middleware to require login for certain endpoints
 	protected.Use(api.authMiddleware)
 
+	router.Use(corsMiddleware)
+
 	return api
 }
 
 func (a *GatewayApi) verifyUserEndpoint(writer http.ResponseWriter, request *http.Request) {
+	log.Println("Starting verification")
 	authorizationHeader := request.Header.Get("Authorization")
-	token := strings.Split(authorizationHeader, "Bearer ")[1]
+	tokenParts := strings.Split(authorizationHeader, "Bearer ")
 
+	if len(tokenParts) < 2 {
+		jsend.FormatResponse(writer, "Unauthorized", jsend.BadRequest)
+	}
+
+	token := tokenParts[1]
+
+	log.Println(token)
 	status, err := a.service.VerifyUser(token)
 
 	if err != nil {
@@ -68,22 +75,15 @@ func (a *GatewayApi) StartAPI() {
 
 	log.Printf("Started FlightLogger on port: %s", "61225")
 
-	headersOK := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type"})
-	originsOK := handlers.AllowedOrigins([]string{"*"})
-	methodsOK := handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS", "DELETE", "PUT"})
-
-	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), handlers.CORS(headersOK, originsOK, methodsOK)(a.router))
-	//err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), a.router)
+	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", "61225"), a.router)
 
 	if err != nil {
 		log.Fatalf("Unable to start the API due to the following error: \n %v", err)
 	}
-	//a.router.Host
 }
 
 func (a *GatewayApi) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Will result in something like Bearer <TOKEN>
 
 		authorizationHeader := r.Header.Get("Authorization")
 
@@ -144,4 +144,18 @@ func printRoutes(router *mux.Router) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token, Authorization, Token")
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("content-type", "application/json;charset=UTF-8")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

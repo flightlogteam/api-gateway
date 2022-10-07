@@ -25,18 +25,33 @@ type GatewayService struct {
 	publicKeys      []oidcdiscovery.PublicKey
 }
 
+func getDiscoveryClientWithRetry(retryCount int, sleepTime int, authenticationProvider string) (*oidcdiscovery.OidcDiscoveryClient, error) {
+	var err error
+	var discoveryClient *oidcdiscovery.OidcDiscoveryClient = nil
+	attempt := 1
+
+	discoveryClient, err = oidcdiscovery.NewOidcDiscoveryClient(authenticationProvider)
+	for err != nil && attempt <= retryCount {
+		log.Printf("Could not get discoveryDocument, will wait for %v and this was attempt %v of %v", sleepTime, attempt, retryCount)
+		attempt += 1
+		time.Sleep(time.Duration(sleepTime) * time.Second)
+		discoveryClient, err = oidcdiscovery.NewOidcDiscoveryClient(authenticationProvider)
+	}
+
+	return discoveryClient, err
+}
+
 func NewGatewayService(
 	storageAdapter persist.Adapter,
 	userRepository repository.IUserServiceRepository,
 	authenticationProvider string,
 ) IGatewayService {
-	discoveryClient, err := oidcdiscovery.NewOidcDiscoveryClient(authenticationProvider)
+	discoveryClient, err := getDiscoveryClientWithRetry(5, 10, authenticationProvider)
 
 	if err != nil {
 		log.Fatalf("Could not discover any auth-provider on %v, with error %v", authenticationProvider, err)
 	}
 
-	log.Println("Trying to log the jwks-url", discoveryClient.DiscoveryDocument().JwksURI, discoveryClient.DiscoveryDocument().Issuer)
 	publicKeys, err := discoveryClient.GetCertificates()
 
 	if err != nil {
@@ -59,7 +74,6 @@ func (k *GatewayService) getPublicKey(token *jwt.Token) (*rsa.PublicKey, error) 
 			cert = key.GetCertificate()
 		}
 	}
-	log.Println(cert)
 
 	if cert == "" {
 		err := errors.New("Unable to find appropriate key.")
@@ -98,9 +112,6 @@ func (k *GatewayService) ValidateToken(tokenString string) (jwt.Claims, error) {
 
 // RegisterUser Deprecated
 func (k *GatewayService) RegisterUser(userData models.UserRegistration) (int, error) {
-	// Validate the data
-	// Is this an valid email?
-	log.Println(userData)
 	isEmail, _ := regexp.MatchString(`^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$`, userData.Email)
 
 	if userData.PrivacyLevel > 2 || userData.PrivacyLevel < 0 {
